@@ -6,33 +6,42 @@ pragma solidity ^0.8.8;
 
 import "./PriceConverter.sol";
 
+// constant, immutable - can't be changed
+// assigns variables to byte code of contract instead of a storage spot -> gas efficient
+
+// custom error
+error NotOwner();
+
 contract FundMe {
     using PriceConverter for uint256;
 
     // set minimum USD
-    uint256 public minimumUSD = 50 * 1e18; // 1 * 10 ** 18
+    // constant variable are all caps
+    uint256 public constant MINIMUM_USD = 50 * 1e18; // 1 * 10 ** 18
 
     address[] public funders;
     mapping(address => uint256) public addressToAmountFunded;
 
     // global variable 
-    address public owner;
+    // imutable = variables set once but outside of where they're declared
+    // _i to signify immutable variable
+    address public immutable i_owner;
 
     /* constructor - gets called immediately when the contract is deployed */
     constructor (){
         // msg.sender of construction function is the deployer of the contract
-        owner = msg.sender;
+        i_owner = msg.sender;
     }
 
     // fund contract address
     function fund() public payable {
         // 1. How do we send ETH to this contract? requires at least 1 ETH 
         // if first part of require is not met, revert to second condition and return remaining gas
-        require (msg.value.getConversionRate() >= minimumUSD, "Didn't send enough eeeeth"); // 1e18 == 1 * 10 ** 18 
+        require (msg.value.getConversionRate() >= MINIMUM_USD, "Didn't send enough eeeeth"); // 1e18 == 1 * 10 ** 18 
         // .sender is the address of whoever calls the fund function
         // keep track of senders who fund the contract
         funders.push(msg.sender);
-        addressToAmountFunded[msg.sender] = msg.value;
+        addressToAmountFunded[msg.sender] += msg.value;
     }
 
     // withdraw funds out of the contract
@@ -70,10 +79,20 @@ contract FundMe {
     
     // modifier - add keyword to funtion declaration so that the modifers code runs before the function
     modifier onlyOwner{
-            require (msg.sender == owner, "Sender is not onwer");
+            // require (msg.sender == i_owner, "Sender is not onwer");
+            if(msg.sender != i_owner) { revert NotOwner(); }
             // signals to do the rest of the function 
             _;
+    }
 
+    // what happens if someone sends the contract eth without calling fund()
+    // receive() will automatically route them to the fund()
+    // fallback() if no function is specified fallback() will be called
+    receive() external payable {
+        fund();
+    }
+    fallback () external payable {
+        fund();
     }
 
 
